@@ -1,8 +1,6 @@
 import { sticker } from '../lib/sticker.js'
 
 const ADMIN_GROUP_ID = "120363382897286189@g.us"
-const DESTINATION_GROUP_ID = "120363379254033969@g.us" // Nuevo grupo donde se enviará el mensaje
-
 let handler = async (m, { conn, text }) => {
 try {
 let groupMetadata = await conn.groupMetadata(ADMIN_GROUP_ID)
@@ -24,30 +22,38 @@ console.log(media)
 sticker_ = await sticker(media, false, 'FicctBot', 'Powered @Alba070503')
 }
 
+const recipient = "120363379254033969@g.us"
+const groupChatId = "120363382897286189@g.us"
+
 await m.reply('Enviando... ⏳ Si el contenido lleva multimedia tomará tiempo, sea paciente.')
     
   if (/webp/.test(mime) && media) {
-  await conn.sendFile(DESTINATION_GROUP_ID, sticker_, 'sticker.webp', '', null)
+  await conn.sendFile(recipient, sticker_, 'sticker.webp', '', null)
+  m.chat !== groupChatId ? await conn.sendFile(groupChatId, sticker_, 'sticker.webp', '', m) : ''
   messageType = 'Sticker'
   } else if (/image/.test(mime) && media) {
-  await conn.sendMessage(DESTINATION_GROUP_ID, { image: media, caption: text })
+  await conn.sendMessage(recipient, { image: media, caption: text })
+  m.chat !== groupChatId ? await conn.sendMessage(groupChatId, { image: media, caption: text }) : ''
   messageType = 'Imagen'
   } else if (/video/.test(mime) && media) {
-  await conn.sendMessage(DESTINATION_GROUP_ID, { video: media, caption: text }) || conn.sendMessage(DESTINATION_GROUP_ID, { video: media, gifPlayback: true, caption: text, mimetype: mime }, { quoted: null })
+  await conn.sendMessage(recipient, { video: media, caption: text }) || conn.sendMessage(recipient, { video: media, gifPlayback: true, caption: text, mimetype: mime}, {quoted: null })
+  m.chat !== groupChatId ? await conn.sendMessage(groupChatId, { video: media, caption: text }) || conn.sendMessage(groupChatId, { video: media, gifPlayback: true, caption: text, mimetype: mime}, {quoted: m }) : ''
   messageType = 'Video'
   } else if (/audio/.test(mime) && media) {
-  await conn.sendMessage(DESTINATION_GROUP_ID, { audio: media, mimetype: 'audio/mp4', ptt: true })
+  await conn.sendMessage(recipient, { audio: media, mimetype: 'audio/mp4', ptt: true })
+  m.chat !== groupChatId ? await conn.sendMessage(groupChatId, { audio: media, mimetype: 'audio/mp4', ptt: true }) : ''
   messageType = 'Audio'
   } else if (text) {
-  await conn.sendMessage(DESTINATION_GROUP_ID, { text })
+  await conn.sendMessage(recipient, { text })
+  m.chat !== groupChatId ? await conn.sendMessage(groupChatId, { text }) : ''
   messageType = 'Texto'
   } else {
   return m.reply('❌ No se pudo procesar el archivo o mensaje.')
   }
 
-let groupMessage = `*@${m.sender.split("@")[0]} ha enviado lo siguiente al grupo:*\n\n\`Tipo de mensaje:\` ${messageType || mime}\n\`Texto:\` ${text || 'No se incluyó un mensaje de texto.'}`
-await conn.sendMessage(ADMIN_GROUP_ID, { text: groupMessage, mentions: [m.sender] })
-await m.reply('✅ Mensaje enviado al grupo destino y notificado en el grupo de administradores.')
+let groupMessage = `*@${m.sender.split("@")[0]} ha enviado lo siguiente al canal:*\n\n\`Tipo de mensaje:\` ${messageType || mime}\n\`Texto:\` ${text || 'No se incluyó un mensaje de texto.'}`
+await conn.sendMessage(groupChatId, { text: groupMessage, mentions: [m.sender] })
+await m.reply('✅ Mensaje enviado al canal y al grupo.')
 } catch (e) {
 m.reply('❌ Error.')
 console.log(e)        

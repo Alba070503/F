@@ -1,5 +1,5 @@
 const fetch = require('node-fetch');
-const baileys = require('baileys');
+const baileys = require('@whiskeysockets/baileys'); // O el paquete que estés usando
 
 module.exports = {
   name: "pixai",

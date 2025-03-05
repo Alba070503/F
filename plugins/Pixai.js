@@ -1,104 +1,59 @@
-const fetch = require('node-fetch');
-const baileys = require('@whiskeysockets/baileys'); // O el paquete que estés usando
+import fetch from 'node-fetch';
+import baileys from '@whiskeysockets/baileys';
 
-module.exports = {
-  name: "pixai",
-  alias: ["pixai"],
-  category: "search",
-  use: "<query>",
-  example: "%cmd <query>",
-  cooldown: 3,
-  isSpam: true,
-  isQuery: true,
+let handler = async (m, { conn, text }) => {
+    if (!text) return m.reply('*⚠️ Debes ingresar una consulta para buscar imágenes.*');
 
-  async run({ conn, msg }, { query }) {
-    conn.sendMessage(msg.from, {
-        react: {
-          text: '⏱️',
-          key: msg.key,
-        },
-      });
-    const apiUrl = `https://api.dorratz.com/v2/pix-ai?prompt=${encodeURIComponent(query)}`;    
     try {
-      const response = await fetch(apiUrl);      
-       if (!response.ok) {
-        throw new Error('Error en la red: ' + response.status);
-      }
-      const data = await response.json();
-       if (!data.images || data.images.length === 0) {
-        return msg.reply(`No se encontraron imágenes para la consulta`);
-      }
+        // Reacciona al mensaje
+        await conn.sendMessage(m.chat, { react: { text: '⏱️', key: m.key } });
 
-      const medias = data.images.map(imageUrl => ({
-        type: "image",
-        data: { url: imageUrl }
-      }));
+        // API de PixAI
+        const apiUrl = `https://api.dorratz.com/v2/pix-ai?prompt=${encodeURIComponent(text)}`;
+        let response = await fetch(apiUrl);
+        
+        if (!response.ok) throw new Error(`Error en la red: ${response.status}`);
 
-      const caption = "🌙 request answered by api.dorratz.com";
+        let data = await response.json();
+        if (!data.images || data.images.length === 0) return m.reply('*❌ No se encontraron imágenes.*');
 
-      await sendAlbumMessage(conn, msg.from, medias, { caption, quoted: msg });
+        // Prepara las imágenes para enviarlas en un álbum
+        let medias = data.images.map(url => ({ type: "image", data: { url } }));
+        let caption = "🌙 Imagen generada por PixAI";
+
+        // Enviar las imágenes en un álbum
+        await sendAlbumMessage(conn, m.chat, medias, { caption, quoted: m });
+
     } catch (error) {
-      console.error('Error:', error);
-      msg.reply(`Ocurrió un error al procesar la solicitud. Inténtalo de nuevo más tarde.`);
+        console.error('Error:', error);
+        m.reply('*❌ Error al obtener imágenes. Intenta de nuevo más tarde.*');
     }
-  }
 };
 
+// Función para enviar álbum de imágenes
 async function sendAlbumMessage(conn, jid, medias, options) {
-  options = { ...options };
-  if (typeof jid !== "string") throw new TypeError(`jid must be string, received: ${jid} (${jid?.constructor?.name})`);
-  for (const media of medias) {
-    if (!media.type || (media.type !== "image" && media.type !== "video"))
-      throw new TypeError(`medias[i].type must be "image" or "video", received: ${media.type} (${media.type?.constructor?.name})`);
-    if (!media.data || (!media.data.url && !Buffer.isBuffer(media.data)))
-      throw new TypeError(`medias[i].data must be object with url or buffer, received: ${media.data} (${media.data?.constructor?.name})`);
-  }
-  if (medias.length < 2) throw new RangeError("Minimum 2 media");
+    if (medias.length < 2) throw new Error("Se necesitan al menos 2 imágenes para enviar un álbum.");
 
-  const caption = options.text || options.caption || "";
-  const delay = !isNaN(options.delay) ? options.delay : 500;
-  delete options.text;
-  delete options.caption;
-  delete options.delay;
-
-  const album = baileys.generateWAMessageFromContent(
-    jid,
-    {
-      messageContextInfo: {},
-      albumMessage: {
-        expectedImageCount: medias.filter(media => media.type === "image").length,
-        expectedVideoCount: medias.filter(media => media.type === "video").length,
-        ...(options.quoted
-          ? {
-              contextInfo: {
-                remoteJid: options.quoted.key.remoteJid,
-                fromMe: options.quoted.key.fromMe,
-                stanzaId: options.quoted.key.id,
-                participant: options.quoted.key.participant || options.quoted.key.remoteJid,
-                quotedMessage: options.quoted.message,
-              },
-            }
-          : {}),
-      },
-    },
-    {}
-  );
-
-  await conn.relayMessage(album.key.remoteJid, album.message, { messageId: album.key.id });
-
-  for (const i in medias) {
-    const { type, data } = medias[i];
-    const img = await baileys.generateWAMessage(
-      album.key.remoteJid,
-      { [type]: data, ...(i === "0" ? { caption } : {}) },
-      { upload: conn.waUploadToServer }
+    let caption = options.caption || "";
+    let album = baileys.generateWAMessageFromContent(
+        jid,
+        { albumMessage: { expectedImageCount: medias.length } },
+        {}
     );
-    img.message.messageContextInfo = {
-      messageAssociation: { associationType: 1, parentMessageKey: album.key },
-    };
-    await conn.relayMessage(img.key.remoteJid, img.message, { messageId: img.key.id });
-    await baileys.delay(delay);
-  }
 
-  return album;
+    await conn.relayMessage(jid, album.message, { messageId: album.key.id });
+
+    for (let i in medias) {
+        let { type, data } = medias[i];
+        let msg = await baileys.generateWAMessage(jid, { [type]: data, ...(i == 0 ? { caption } : {}) }, { upload: conn.waUploadToServer });
+        msg.message.messageContextInfo = { messageAssociation: { associationType: 1, parentMessageKey: album.key } };
+        await conn.relayMessage(jid, msg.message, { messageId: msg.key.id });
+        await baileys.delay(500);
+    }
+
+    return album;
 }
+
+// Configuración del comando
+handler.command = /^(pixai)$/i;
+export default handler;

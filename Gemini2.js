@@ -1,94 +1,82 @@
-/*
-CODE IA PAPI 🤓
-LA IA MANTIENE LA CONVERSACIÓN CON EL USUARIO 
-ECHO POR EliasarYT 👾
-CANAL "https://whatsapp.com/channel/0029VadxAUkKLaHjPfS1vP36"
-API RICA "https://eliasar-yt-api.vercel.app"
-*/
-case 'ia': {
 const fs = require('fs');
 const https = require('https');
-const sender = m.key.fromMe ? (conn.user.id.split(':')[0] + '@s.whatsapp.net' || conn.user.id) : (m.key.participant || m.key.remoteJid);
-const botNumber = await conn.decodeJid(conn.user.id);
-const senderNumber = sender.split('@')[0];
-const path = './conversationHistory.json';
 
-if (!fs.existsSync(path)) {
-fs.writeFileSync(path, JSON.stringify({}));
-}
+module.exports = {
+  name: "ia",
+  alias: ["ai", "chatgpt"],
+  category: "ai",
+  use: "@bot <mensaje>",
+  example: "@bot ¿Cómo estás?",
+  cooldown: 3,
+  isSpam: true,
 
-let args = m.text.split(/\s+/).slice(1);
-let txt = args.join(" ").trim();
+  async run({ conn, msg }) {
+    const botNumber = conn.user.id.split(':')[0] + '@s.whatsapp.net';
+    const sender = msg.key.participant || msg.key.remoteJid;
+    const path = './conversationHistory.json';
 
-if (!txt) {
-m.reply('Por favor, proporciona un texto para enviar a la IA 😑.');
-return;
-}
+    // Cargar historial de conversación
+    let conversationHistory = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path, 'utf8')) : {};
 
-conn.sendPresenceUpdate('composing', m.chat);
-conn.readMessages([m.key]);
+    // Verificar si el bot fue mencionado o si es mensaje privado
+    const mentionedJid = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+    const isMentioned = mentionedJid.includes(botNumber);
+    const isPrivateChat = msg.key.remoteJid === sender;
 
-let conversationHistory = JSON.parse(fs.readFileSync(path, 'utf8'));
+    if (!isMentioned && !isPrivateChat) return;
 
-if (!conversationHistory[sender]) {
-conversationHistory[sender] = [
-{ role: 'system', content: 
-`Actúa como un bot de WhatsApp. Te llamas ansi-BOT-MD, un modelo de lenguaje natural avanzado. Responderás de manera amigable a los usuarios. Tu creador es EliasarYT (o en GitHub como Eliasar54), y mi nombre es ${pushname}.` }
-];
-}
+    let txt = msg.body.replace(new RegExp(`@${botNumber.split('@')[0]}`, 'g'), '').trim();
+    if (!txt) return msg.reply('Debes escribir algo para que la IA responda.');
 
-conversationHistory[sender].push({ role: 'user', content: txt });
+    conn.sendPresenceUpdate('composing', msg.from);
+    conn.readMessages([msg.key]);
 
-let conversationText = conversationHistory[sender].map(msg => 
-msg.role === 'system' ? `Sistema: ${msg.content}\n\n`
-: msg.role === 'user' ? `Usuario: ${msg.content}\n\n`
-: `${msg.content}\n\n`
-).join('');
+    if (!conversationHistory[sender]) {
+      conversationHistory[sender] = [{ role: 'system', content: "Eres un asistente de WhatsApp llamado ansi-BOT-MD, creado por EliasarYT. Responde de manera amigable." }];
+    }
 
-const data = JSON.stringify({
-contents: [{ parts: [{ text: conversationText }] }]
-});
+    conversationHistory[sender].push({ role: 'user', content: txt });
 
-const options = {
-hostname: 'generativelanguage.googleapis.com',
-path: '/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyBi3kt0iSU5-aCC2jy0SfgKt_TE4cNLj9A',
-method: 'POST',
-headers: {
-'Content-Type': 'application/json',
-'Content-Length': Buffer.byteLength(data)
-}
+    const data = JSON.stringify({
+      contents: [{ parts: [{ text: txt }] }]
+    });
+
+    const options = {
+      hostname: 'generativelanguage.googleapis.com',
+      path: '/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyBi3kt0iSU5-aCC2jy0SfgKt_TE4cNLj9A',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    };
+
+    const req = https.request(options, (res) => {
+      let responseData = '';
+
+      res.on('data', (chunk) => {
+        responseData += chunk;
+      });
+
+      res.on('end', () => {
+        try {
+          const responseJson = JSON.parse(responseData);
+          const replyText = responseJson?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+          if (replyText) {
+            conversationHistory[sender].push({ role: 'assistant', content: replyText });
+            fs.writeFileSync(path, JSON.stringify(conversationHistory, null, 2));
+            conn.sendMessage(msg.from, { text: replyText }, { quoted: msg });
+          } else {
+            msg.reply("La IA no respondió correctamente.");
+          }
+        } catch (error) {
+          msg.reply(`Error en la respuesta: ${error.message}`);
+        }
+      });
+    });
+
+    req.on('error', (error) => {
+      msg.reply(`Error de conexión con la IA: ${error.message}`);
+    });
+
+    req.end();
+  }
 };
-
-const req = https.request(options, (res) => {
-let responseData = '';
-
-res.on('data', (chunk) => {
-responseData += chunk;
-});
-
-res.on('end', () => {
-try {
-const responseJson = JSON.parse(responseData);
-const replyText = responseJson?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-if (replyText) {
-conversationHistory[sender].push({ role: 'assistant', content: replyText });
-fs.writeFileSync(path, JSON.stringify(conversationHistory, null, 2));
-conn.sendMessage(m.chat, { text: replyText }, { quoted: m });
-} else {
-m.reply("La IA no envió una respuesta válida. 🙀");
-}
-} catch (error) {
-m.reply(`Error al procesar la respuesta 😖: ${error.message}`);
-}
-});
-});
-
-req.on('error', (error) => {
-m.reply(`Error de conexión con la IA 🤨: ${error.message}`);
-});
-
-req.write(data);
-req.end();
-break;
-}

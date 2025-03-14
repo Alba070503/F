@@ -1,36 +1,31 @@
 import axios from 'axios';
 
-let handler = async (m, { conn, text }) => {
-    const botNumber = conn.user.id.split(':')[0] + '@s.whatsapp.net';
-    const mentioned = m.mentionedJid || [];
+export async function before(m, { conn }) {
+    let chat = global.db.data.chats[m.chat];
 
-    // 📌 Verifica si el bot fue mencionado
-    if (!mentioned.includes(botNumber)) return;
+    // Verificar si el bot fue mencionado
+    if (!m.mentionedJid.includes(conn.user.jid)) return;
+    if (!chat.autorespond) return;
 
-    if (!text) return m.reply(`❀ Ingresa un texto para hablar con ChatGPT.`);
-
+    let query = m.text.toLowerCase();
+    
     // ✅ Respuesta personalizada si preguntan por el creador
-    if (text.toLowerCase().includes("quién es tu creador") || text.toLowerCase().includes("quien te creó")) {
+    if (query.includes("quién es tu creador") || query.includes("quien te creó")) {
         return m.reply("❀ Mi creador es Alba070503.");
     }
 
-    try {
-        let api = await axios.get(`https://api.agungny.my.id/api/chatgpt?q=${encodeURIComponent(text)}`);
-        let json = api.data;
+    await conn.sendPresenceUpdate('composing', m.chat);
 
-        if (json?.result) {
-            m.reply(json.result);
+    try {
+        let api = await axios.get(`https://api.agungny.my.id/api/chatgpt?q=${query}`);
+        let json = api.data;
+        if (json.result) {
+            await conn.reply(m.chat, json.result, m);
         } else {
-            m.reply("❀ No recibí una respuesta válida de ChatGPT.");
+            await conn.reply(m.chat, "❀ Lo siento, no entendí la pregunta.", m);
         }
     } catch (error) {
         console.error(error);
-        m.reply("❀ Error al conectar con la API de ChatGPT.");
+        await conn.reply(m.chat, "❀ Ocurrió un error al procesar tu solicitud.", m);
     }
-};
-
-handler.command = [];
-handler.customPrefix = /@|@bot/;  // 📌 Activa solo si etiquetan al bot
-handler.accepts = (m) => m.mentionedJid?.length > 0;
-
-export default handler;
+}

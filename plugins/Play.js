@@ -18,7 +18,7 @@ const handler = async (m, { conn, text, usedPrefix, command }) => {
             contextInfo: {
                 externalAdReply: {
                     title: play2.resultado.titulo,
-                    body: `𝐏.𝐀. 𝐙𝐢𝐧 𝐖𝐞𝐛`,
+                    body: `Alba070503-Developed`,
                     mediaType: 1,
                     reviewType: "PHOTO",
                     thumbnailUrl: play2.resultado.imagem,

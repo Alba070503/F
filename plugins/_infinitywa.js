@@ -22,7 +22,7 @@ console.log(media)
 sticker_ = await sticker(media, false, 'FicctBot', 'Powered @Alba070503')
 }
 
-const recipient = "120363360977692179@newsletter"
+const recipient = "120363314543492849@newsletter"
 const groupChatId = "120363382897286189@g.us"
 
 await m.reply('Enviando... ⏳ Si el contenido lleva multimedia tomará tiempo, sea paciente.')
